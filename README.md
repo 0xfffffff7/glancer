@@ -17,7 +17,8 @@ Apache License, Version 2.0
 3. Please hide the browser certificate warning. 
   
 
-`using System;
+`
+using System;
 using System.Security.Cryptography.X509Certificates;
 
 namespace Glancer
