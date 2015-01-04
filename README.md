@@ -17,6 +17,7 @@ Apache License, Version 2.0
 3. Please hide the browser certificate warning. 
   
 
+```
     using System;
     using System.Security.Cryptography.X509Certificates;
     
@@ -39,19 +40,22 @@ Apache License, Version 2.0
             }
         }
     }
-  
+```
+
 
 # Rewrite the packet  
   
 Try implement IHttpEventListener  
 
-    `interface IHttpEventListener
+```
+    interface IHttpEventListener
     {
         HttpRequestObject OnHttpRequestClient(HttpRequestObject request, Stream serverStream, Stream clientStream);
         HttpRequestObject OnHttpRequestServer(HttpRequestObject request, Stream serverStream, Stream clientStream);
         HttpResponseObject OnHttpResponseClient(HttpResponseObject response, Stream serverStream, Stream clientStream);
         HttpResponseObject OnHttpResponseServer(HttpResponseObject response, Stream serverStream, Stream clientStream);
-    }`
+    }
+```
   
   
   
