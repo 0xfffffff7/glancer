@@ -5,6 +5,12 @@ using System.IO;
 
 namespace Glancer
 {
+    public static class HTTP_PORT
+    {
+        public static readonly string HTTP = "80";
+        public static readonly string HTTPS = "443";
+    }
+
     public static class HTTP_HEADER_KEY
     {
         public static readonly string CONTENT_TYPE = "Content-Type";
@@ -13,6 +19,7 @@ namespace Glancer
         public static readonly string CONNECTION = "Connection";
         public static readonly string HOST = "Host";
     }
+
     public static class HTTP_HEADER_VALUE
     {
         public static readonly string KEEPALLIVE = "Keep-Alive";
@@ -22,6 +29,7 @@ namespace Glancer
         public static readonly string JSON = "application/json";
        
     }
+
     public static class HTTP_METHOD
     {
         public static readonly string GET = "GET";

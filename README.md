@@ -1,4 +1,4 @@
-glancer (Version 0.0.1.0)
+glancer (Version 0.0.1.1)
 =======
 
 # glancer  
@@ -15,33 +15,19 @@ Apache License, Version 2.0
 1. Install secret.pfx in local certificate store.  
 2. Resolution machine DNS at the hostname of the certificate.  
 3. Please hide the browser certificate warning. 
-  
+4. Setting ConfigFile.  
 
 ```
-    using System;
-    using System.Security.Cryptography.X509Certificates;
-    
-    namespace Glancer
-    {
-        class Program
-        {
-            public static int Main(string[] args)
-            {
-                string certificate = @"secret.pfx";
-                string password = @"";
-                X509Certificate serverCertificate = new X509Certificate(certificate, password);
-    
-                SslTcpServer server = new SslTcpServer(serverCertificate, 8080, 5000, 5000);
-                server._protocolLogDir = @"C:\tmp";
-                server._traceLogDir = @"C:\tmp";
-                server.RunServer();
-    
-                return 0;
-            }
-        }
-    }
+  <appSettings>
+    <add key="CERTIFICATE" value="secret.pfx"/>
+    <add key="CERTIFICATE_PASSWORD" value=""/>
+    <add key="PROTOCOLLOG_DIR" value=""/>
+    <add key="TRACELOG_DIR" value=""/>
+    <add key="LISTEN_PORT" value="8080"/>
+    <add key="READ_TIMEOUT" value="5000"/>
+    <add key="WRITE_TIMEOUT" value="5000"/>
+  </appSettings>
 ```
-
 
 # Rewrite the packet  
   
