@@ -21,23 +21,20 @@ namespace Glancer
         private ServerCertificate serverCertificate = new ServerCertificate();
         public ServerCertificate ServerCertificate { get { return serverCertificate; } }
         SslStream sslStream;
-        int _readTimeout = 0;
-        int _writeTimeout = 0;
+        TcpClient _tcpClient = null;
 
-        public SslTcpClient(int readTimeout, int writeTimeout)
+        public SslTcpClient(TcpClient client)
         {
-            _readTimeout = readTimeout;
-            _writeTimeout = writeTimeout;
+            _tcpClient = client;
         }
 
         public SslStream Connect(string host, int port)
         {
-            TcpClient client = null;
             try
             {
-                client = new TcpClient(host, port);
+                _tcpClient = new TcpClient(host, port);
                 sslStream = new SslStream(
-                    client.GetStream(),
+                    _tcpClient.GetStream(),
                     false,
                     new RemoteCertificateValidationCallback(ValidateCertificate),
                     null);
@@ -61,7 +58,7 @@ namespace Glancer
                 {
                     serverCertificate.exceptionError += e.InnerException.Message;
                 }
-                client.Close();
+                _tcpClient.Close();
                 return sslStream;
             }catch(Exception e){
                 throw e;
@@ -88,9 +85,9 @@ namespace Glancer
             return false;
         }
 
-        public string Read() { return Encoding.UTF8.GetString(HttpStream.Read(sslStream, _readTimeout)); }
+        public string Read() { return Encoding.UTF8.GetString(HttpStream.Read(sslStream)); }
 
-        public void Write(string message) { HttpStream.Write(sslStream, Encoding.UTF8.GetBytes(message), _writeTimeout); }
+        public void Write(string message) { HttpStream.Write(sslStream, Encoding.UTF8.GetBytes(message)); }
 
         public void Close() { if (sslStream != null) sslStream.Close(); }
 

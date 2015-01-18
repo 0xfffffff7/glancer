@@ -1,29 +1,72 @@
 ﻿using System;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 
 namespace Glancer
 {
     class HttpStreamProxy
     {
 
-        static public void Proxy(Stream client, int writeTimeout, Stream server, int readTimeout, IHttpEventListener listner)
+        static public void Proxy(TcpClient serverSocket, IHttpEventListener listner)
         {
+
+            Stream server = serverSocket.GetStream();
+            Stream client = null;
+            bool ssl = false;
+            TcpClient clinetSocket = null;
+            bool bConnect = false;
+            string host = string.Empty;
 
             while (true)
             {
+
                 //-----------------------------------------
                 // Request.
                 // Clinet -> Proxy
                 //-----------------------------------------
+                
                 HttpRequestObject request = null;
                 try
                 {
-                    request = HttpStream.ReadRequest(server, readTimeout);
+                    request = HttpStream.ReadRequest(server);
 
                     if (request == null)
                     {
                         break;
                     }
+
+                    //-----------------------------------------
+                    // SSL Handshake.
+                    //-----------------------------------------
+                    if (SslHandshake.IsSslConnection(request))
+                    {
+                        SslStreamSet sslset = SslHandshake.Handshake(clinetSocket, request, server);
+                        server = sslset._serverStream;
+                        client = sslset._clientStream;
+                        ssl = true;
+                        continue;
+                    }
+                    //-----------------------------------------
+                    // HTTP Conection.
+                    //-----------------------------------------
+                    else if ((ssl == false && bConnect == false) || host != request._header._host)
+                    {
+                        if (clinetSocket != null)
+                        {
+                            client.Close();
+                            clinetSocket.Close();
+                        }
+
+                        clinetSocket = new TcpClient();
+                        clinetSocket.Connect(request._header._host, request._header._port);
+                        client = clinetSocket.GetStream();
+                        bConnect = true;
+                    }
+
+                    // save host.
+                    host = request._header._host;
 
                     //-----------------------------------------
                     // Observer.
@@ -33,9 +76,37 @@ namespace Glancer
                         request = listner.OnHttpRequestClient(request, server, client);
                     }
 
+                }catch(Exception ex){
+                    if (clinetSocket != null)
+                    {
+                        client.Close();
+                        clinetSocket.Close();
+                    }
+                    server.Close();
+                    serverSocket.Close();
 
-                }catch{
-                    break;
+                    throw ex;
+                }
+
+
+                //-----------------------------------------
+                // Modify Request.
+                // Proxy -> Server
+                //-----------------------------------------
+                try
+                {
+                    HttpHeader.ModifyProxyRequest(request._header);
+
+                }catch(Exception ex){
+                    if (clinetSocket != null)
+                    {
+                        client.Close();
+                        clinetSocket.Close();
+                    }
+                    server.Close();
+                    serverSocket.Close();
+
+                    throw ex;
                 }
 
 
@@ -46,7 +117,7 @@ namespace Glancer
                 //-----------------------------------------
                 try
                 {
-                    HttpStream.Write(request, client, writeTimeout);
+                    HttpStream.Write(request, client);
 
                     //-----------------------------------------
                     // Observer.
@@ -56,9 +127,20 @@ namespace Glancer
                         request = listner.OnHttpRequestServer(request, server, client);
                     }
 
-                }catch{
-                    break;
                 }
+                catch (Exception ex)
+                {
+                    if (clinetSocket != null)
+                    {
+                        client.Close();
+                        clinetSocket.Close();
+                    }
+                    server.Close();
+                    serverSocket.Close();
+
+                    throw ex;
+                }
+
 
 
 
@@ -70,7 +152,7 @@ namespace Glancer
                 HttpResponseObject response = null;
                 try
                 {
-                    response = HttpStream.ReadResponse(client, readTimeout);
+                    response = HttpStream.ReadResponse(client);
                     if (response == null)
                     {
                         break;
@@ -84,9 +166,20 @@ namespace Glancer
                         response = listner.OnHttpResponseClient(response, server, client);
                     }
 
-                }catch{
-                    break;
                 }
+                catch (Exception ex)
+                {
+                    if (clinetSocket != null)
+                    {
+                        client.Close();
+                        clinetSocket.Close();
+                    }
+                    server.Close();
+                    serverSocket.Close();
+
+                    throw ex;
+                }
+
 
 
 
@@ -96,7 +189,7 @@ namespace Glancer
                 //-----------------------------------------
                 try
                 {
-                    HttpStream.Write(response, server, writeTimeout);
+                    HttpStream.Write(response, server);
 
                     //-----------------------------------------
                     // Observer.
@@ -106,22 +199,35 @@ namespace Glancer
                         response = listner.OnHttpResponseServer(response, server, client);
                     }
 
-                }catch{
-                    break;
                 }
+                catch (Exception ex)
+                {
+                    if (clinetSocket != null)
+                    {
+                        client.Close();
+                        clinetSocket.Close();
+                    }
+                    server.Close();
+                    serverSocket.Close();
 
-
+                    throw ex;
+                }
 
 
                 if (request._header._isKeepAllive == false || response._header._isKeepAllive == false)
                 {
                     break;
                 }
+
             }
 
-            client.Close();
+            if (clinetSocket != null)
+            {
+                client.Close();
+                clinetSocket.Close();
+            }
             server.Close();
+            serverSocket.Close(); 
         }
-
     }
 }

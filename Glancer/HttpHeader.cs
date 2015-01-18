@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Text;
 using System.IO;
 
@@ -18,6 +19,8 @@ namespace Glancer
         public static readonly string TRANSFER_ENCODING = "Transfer-Encoding";
         public static readonly string CONNECTION = "Connection";
         public static readonly string HOST = "Host";
+        public static readonly string PROXY_CONNECTION = "Proxy-Connection";
+        public static readonly string SET_COOKIE = "Set-Cookie";
     }
 
     public static class HTTP_HEADER_VALUE
@@ -27,7 +30,6 @@ namespace Glancer
         public static readonly string CHUNKED =  "chunked";
         public static readonly string TEXT = "text/";
         public static readonly string JSON = "application/json";
-       
     }
 
     public static class HTTP_METHOD
@@ -45,18 +47,17 @@ namespace Glancer
         public static readonly string CONNECT = "CONNECT";
     }
 
+    public static class HTTP_VERTION
+    {
+        public static readonly string HTTP10 = "HTTP/1.0";
+        public static readonly string HTTP11 = "HTTP/1.1";
+    }
+
     public class HttpHeader
     {
-        public Dictionary<string, string> headers { get; set; }
-        public string _source = string.Empty;
-        public int _contentSize = 0;
-        public bool _isParse = false;
-        public string _httpVersion { get; set; }
-        public bool _isBinary { get; set; }
-
-        public static Dictionary<string, string> ParseHeader(StringReader header)
+        public static NameValueCollection ParseHeader(StringReader header)
         {
-            Dictionary<string, string> dict = new Dictionary<string,string>();
+            NameValueCollection dict = new NameValueCollection();
             string data = string.Empty;
             data = header.ReadLine();
             do
@@ -74,8 +75,9 @@ namespace Glancer
             return dict;
         }
 
-        public static bool CheckBinary(Dictionary<string, string> headers){
-            if (headers.ContainsKey(HTTP_HEADER_KEY.CONTENT_TYPE))
+        public static bool CheckBinary(NameValueCollection headers)
+        {
+            if (headers.Get(HTTP_HEADER_KEY.CONTENT_TYPE) != null)
             {
                 string contentType = headers[HTTP_HEADER_KEY.CONTENT_TYPE];
 
@@ -90,17 +92,101 @@ namespace Glancer
             }
             return false;
         }
+
+        public static bool ModifyProxyRequest(HttpRequestHeader request)
+        {
+            // modify hostheader.
+            string absolutePath = string.Empty;
+
+            if (request._uri != null) {
+
+                string host = request._uri.Host;
+
+                if (request._uri.Port != Convert.ToInt32(HTTP_PORT.HTTP) || request._uri.Port != Convert.ToInt32(HTTP_PORT.HTTPS))
+                {
+                    host += ":" + request._uri.Port;
+                }
+                request._headers[HTTP_HEADER_KEY.HOST] = host;
+
+                absolutePath = request._uri.AbsolutePath;
+
+            }else{
+                absolutePath = request._path;
+            }
+
+            // create request line.
+            request._requestLine = string.Format("{0} {1} {2}", request._method, absolutePath, request._httpVersion);
+
+
+            if (request._headers[HTTP_HEADER_KEY.PROXY_CONNECTION] != null)
+            {
+                request._headers.Add(HTTP_HEADER_KEY.CONNECTION, request._headers[HTTP_HEADER_KEY.PROXY_CONNECTION]);
+                request._headers.Remove(HTTP_HEADER_KEY.PROXY_CONNECTION);
+            }
+
+
+            // modify source.
+            StringBuilder sb = new StringBuilder();
+            sb.Append(request._requestLine);
+            sb.Append(System.Environment.NewLine);
+
+            StringReader sr = new StringReader(request._source);
+            sr.ReadLine();
+            string line = sr.ReadLine();
+            while(string.IsNullOrEmpty(line) == false)
+            {
+                if (line.StartsWith(HTTP_HEADER_KEY.HOST))
+                {
+                    line = string.Format("{0}: {1}", HTTP_HEADER_KEY.HOST, request._headers[HTTP_HEADER_KEY.HOST]);
+                }
+                if (line.StartsWith(HTTP_HEADER_KEY.PROXY_CONNECTION))
+                {
+                    line = string.Format("{0}: {1}", HTTP_HEADER_KEY.CONNECTION, request._headers[HTTP_HEADER_KEY.CONNECTION]);
+                }
+                sb.Append(line);
+                sb.Append(System.Environment.NewLine);
+
+                line = sr.ReadLine();
+            }
+            sb.Append(System.Environment.NewLine);
+
+            request._source = sb.ToString();
+
+            return true;
+        }
     }
 
-    public class HttpRequestHeader : HttpHeader
+    public class HttpRequestHeader
     {
-        public string _uri { get; set; }
+        public NameValueCollection _headers{get; set;}
+        public string _requestLine { get; set; }
+        public Uri _uri { get; set; }
+        public string _source = string.Empty;
+        public int _contentSize = 0;
+        public bool _isParse = false;
+        public string _httpVersion { get; set; }
+        public bool _isBinary { get; set; }
+
         public string _path { get; set; }
         public string _method { get; set; }
+        public string _host { get; set; }
+        public int _port { get; set; }
+
         public bool _isKeepAllive = false;
+        public bool _isData { get; set; }
 
         public HttpRequestHeader(string source)
         {
+            if (source.Length == 0)
+            {
+                _isData = false;
+                return;
+            }
+            else
+            {
+                _isData = true;
+            }
+
             _isBinary = false;
             _source = source;
             StringReader sreader = new StringReader(_source);
@@ -114,37 +200,89 @@ namespace Glancer
                 }
                 else
                 {
-                    headers = HttpHeader.ParseHeader(sreader);
+                    _headers = HttpHeader.ParseHeader(sreader);
 
-                    if (headers.ContainsKey(HTTP_HEADER_KEY.CONNECTION))
+                    if (_httpVersion == HTTP_VERTION.HTTP10)
                     {
-                        if (headers[HTTP_HEADER_KEY.CONNECTION] == HTTP_HEADER_VALUE.KEEPALLIVE)
+                        if (_headers.Get(HTTP_HEADER_KEY.CONNECTION) != null)
                         {
-                            _isKeepAllive = true;
+                            if (_headers[HTTP_HEADER_KEY.CONNECTION] == HTTP_HEADER_VALUE.KEEPALLIVE)
+                            {
+                                _isKeepAllive = true;
+                            }
+                        }
+                        if (_headers.Get(HTTP_HEADER_KEY.PROXY_CONNECTION) != null)
+                        {
+                            if (_headers[HTTP_HEADER_KEY.PROXY_CONNECTION] == HTTP_HEADER_VALUE.KEEPALLIVE)
+                            {
+                                _isKeepAllive = true;
+                            }
                         }
                     }
-                    if (headers.ContainsKey(HTTP_HEADER_KEY.CONTENT_LENGTH))
+                    else
                     {
-                        _contentSize = Convert.ToInt32(headers[HTTP_HEADER_KEY.CONTENT_LENGTH]);
+                        _isKeepAllive = true;
+                        if (_headers.Get(HTTP_HEADER_KEY.CONNECTION) != null)
+                        {
+                            if (_headers[HTTP_HEADER_KEY.CONNECTION] == HTTP_HEADER_VALUE.CLOSE)
+                            {
+                                _isKeepAllive = false;
+                            }
+                        }
+                        if (_headers.Get(HTTP_HEADER_KEY.PROXY_CONNECTION) != null)
+                        {
+                            if (_headers[HTTP_HEADER_KEY.PROXY_CONNECTION] == HTTP_HEADER_VALUE.CLOSE)
+                            {
+                                _isKeepAllive = false;
+                            }
+                        }
                     }
+
+                    if (_headers.Get(HTTP_HEADER_KEY.CONTENT_LENGTH) != null)
+                    {
+                        _contentSize = Convert.ToInt32(_headers[HTTP_HEADER_KEY.CONTENT_LENGTH]);
+                    }
+
+                    if (_headers.Get(HTTP_HEADER_KEY.HOST) != null)
+                    {
+                        _host = _headers[HTTP_HEADER_KEY.HOST];
+                        
+                        if(_host.IndexOf(":") != -1){
+                            string[] host = _host.Split(':');
+                            _host = host[0];
+                            _port = Convert.ToInt32(host[1]);
+                        }
+                        else
+                        {
+                            _host = _host;
+                            _port = Convert.ToInt32(HTTP_PORT.HTTP);
+                        }
+                    }
+
                 }
             }catch{
                 _isParse = false;
                 return;
             }
 
-            _isBinary = CheckBinary(headers);
+            _isBinary = HttpHeader.CheckBinary(_headers);
             _isParse = true;
         }
 
         private bool ParseRequestMethod(string header)
         {
+            _requestLine = header;
             string[] s = header.Split(' ');
             if (s.Length > 2)
             {
                 _method = s[0];
                 _path = s[1];
                 _httpVersion = s[2];
+
+                if (_method != HTTP_METHOD.CONNECT && _path.StartsWith("/") ==false)
+                {
+                    _uri = new Uri(_path);
+                }
             }
             else
             {
@@ -154,8 +292,15 @@ namespace Glancer
         }
     }
 
-    public class HttpResponseHeader : HttpHeader
+    public class HttpResponseHeader
     {
+        public NameValueCollection _headers { get; set; }
+        public string _source = string.Empty;
+        public int _contentSize = 0;
+        public bool _isParse = false;
+        public string _httpVersion { get; set; }
+        public bool _isBinary { get; set; }
+
         public int _statuscode { get; set; }
         public bool _isChunked = false;
         public bool _isKeepAllive = false;
@@ -175,23 +320,54 @@ namespace Glancer
                 }
                 else
                 {
-                    headers = HttpHeader.ParseHeader(sreader);
+                    _headers = HttpHeader.ParseHeader(sreader);
 
-                    if (headers.ContainsKey(HTTP_HEADER_KEY.CONNECTION))
+                    if (_httpVersion == HTTP_VERTION.HTTP10)
                     {
-                        if (headers[HTTP_HEADER_KEY.CONNECTION] != HTTP_HEADER_VALUE.CLOSE)
+                        if (_headers.Get(HTTP_HEADER_KEY.CONNECTION) != null)
                         {
-                            _isKeepAllive = true;
+                            if (_headers[HTTP_HEADER_KEY.CONNECTION] == HTTP_HEADER_VALUE.KEEPALLIVE)
+                            {
+                                _isKeepAllive = true;
+                            }
+                        }
+                        if (_headers.Get(HTTP_HEADER_KEY.PROXY_CONNECTION) != null)
+                        {
+                            if (_headers[HTTP_HEADER_KEY.PROXY_CONNECTION] == HTTP_HEADER_VALUE.KEEPALLIVE)
+                            {
+                                _isKeepAllive = true;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        _isKeepAllive = true;
+                        if (_headers.Get(HTTP_HEADER_KEY.CONNECTION) != null)
+                        {
+                            if (_headers[HTTP_HEADER_KEY.CONNECTION] == HTTP_HEADER_VALUE.CLOSE)
+                            {
+                                _isKeepAllive = false;
+                            }
+                        }
+                        if (_headers.Get(HTTP_HEADER_KEY.PROXY_CONNECTION) != null)
+                        {
+                            if (_headers[HTTP_HEADER_KEY.PROXY_CONNECTION] == HTTP_HEADER_VALUE.CLOSE)
+                            {
+                                _isKeepAllive = false;
+                            }
                         }
                     }
 
-                    if (headers.ContainsKey(HTTP_HEADER_KEY.TRANSFER_ENCODING)){
-                        if (headers[HTTP_HEADER_KEY.TRANSFER_ENCODING] == HTTP_HEADER_VALUE.CHUNKED)
+                    if (_headers.Get(HTTP_HEADER_KEY.TRANSFER_ENCODING) != null)
+                    {
+                        if (_headers[HTTP_HEADER_KEY.TRANSFER_ENCODING] == HTTP_HEADER_VALUE.CHUNKED)
                         {
                             _isChunked = true;
                         }
-                    }else if(headers.ContainsKey(HTTP_HEADER_KEY.CONTENT_LENGTH)){
-                        _contentSize = Convert.ToInt32(headers[HTTP_HEADER_KEY.CONTENT_LENGTH]);
+                    }
+                    else if (_headers.Get(HTTP_HEADER_KEY.CONTENT_LENGTH) != null)
+                    {
+                        _contentSize = Convert.ToInt32(_headers[HTTP_HEADER_KEY.CONTENT_LENGTH]);
                     }
                 }
             }catch{
@@ -199,7 +375,7 @@ namespace Glancer
                 return;
             }
 
-            _isBinary = CheckBinary(headers);
+            _isBinary = HttpHeader.CheckBinary(_headers);
             _isParse = true;
         }
 

@@ -68,6 +68,7 @@
     <Compile Include="IHttpEventListner.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SslHandshake.cs" />
     <Compile Include="SslTcpClient.cs" />
     <Compile Include="SslTcpServer.cs" />
     <Compile Include="TraceLogger.cs" />

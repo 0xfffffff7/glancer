@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Text;
 using System.IO;
+using System.Net.Sockets;
+using System.Net.Security;
 
 namespace Glancer
 {
@@ -9,10 +11,22 @@ namespace Glancer
         public static string STREAM_TERMINATE = System.Environment.NewLine + System.Environment.NewLine;
         static char CR = '\r';
         static char LF = '\n';
-
-        public static HttpRequestObject ReadRequest(Stream stream, int timeout)
+        public static int BUFFER_SIZE = 1024;
+        public static int READ_TIMEOUT = 5000;
+        public static int READ_CONTENT_TIMEOUT = 5000;
+       
+        public static HttpRequestObject ReadRequest(Stream stream)
         {
-            HttpRequestHeader header = new HttpRequestHeader( Encoding.UTF8.GetString(Read(stream, timeout)) );
+            HttpRequestObject request = null;
+            byte[] buffer = null;
+
+            buffer = Read(stream);
+            if (buffer == null)
+            {
+                return null;
+            }
+
+            HttpRequestHeader header = new HttpRequestHeader(Encoding.UTF8.GetString(buffer));
             if (header._isParse == false)
             {
                 return null;
@@ -21,47 +35,64 @@ namespace Glancer
             HttpContent content = new HttpContent();
             if (0 < header._contentSize)
             {
-                content.Set(ReadContent(stream, header._contentSize, timeout));
+                content.Set(ReadContent(stream, header._contentSize));
             }
 
-            HttpRequestObject request = new HttpRequestObject(header, content);
+            request = new HttpRequestObject(header, content);
+
             return request;
         }
 
-        public static HttpResponseObject ReadResponse(Stream stream, int timeout)
+        public static HttpResponseObject ReadResponse(Stream stream)
         {
-            HttpResponseHeader header = new HttpResponseHeader( Encoding.UTF8.GetString(Read(stream, timeout)));
+            byte[] buffer = Read(stream);
+            if (buffer == null)
+            {
+                return null;
+            }
+
+            HttpResponseHeader header = new HttpResponseHeader(Encoding.UTF8.GetString(buffer));
             HttpContent content = new HttpContent();
             if (0 < header._contentSize)
             {
-                content.Set(ReadContent(stream, header._contentSize, timeout));
+                content.Set(ReadContent(stream, header._contentSize));
             }
             else if (header._isChunked)
             {
-                content.Set(ReadChunked(stream, timeout));
+                content.Set(ReadChunked(stream));
             }
             HttpResponseObject response = new HttpResponseObject(header, content);
             return response;
         }
 
-        public static byte[] Read(Stream stream, int timeout)
+        public static byte[] Read(Stream stream)
         {
             MemoryStream ms = new MemoryStream();
-            stream.ReadTimeout = timeout;
+            stream.ReadTimeout = READ_TIMEOUT;
             bool newline = false;
-            try {
+            try
+            {
                 while (true)
                 {
                     int c = stream.ReadByte();
+                    if (c == -1)
+                    {
+                        break;
+                    }
                     if (c == CR)
                     {
                         ms.WriteByte(Convert.ToByte(c));
 
                         c = stream.ReadByte();
+                        if (c == -1)
+                        {
+                            break;
+                        }
                         if (c == LF)
                         {
-                            if (newline) {
-                                ms.WriteByte(Convert.ToByte(c)); 
+                            if (newline)
+                            {
+                                ms.WriteByte(Convert.ToByte(c));
                                 break;
                             }
                             else
@@ -72,47 +103,68 @@ namespace Glancer
 
                         ms.WriteByte(Convert.ToByte(c));
                     }
-                    else{
+                    else
+                    {
                         ms.WriteByte(Convert.ToByte(c));
                         newline = false;
                     }
                 }
 
-            }catch(Exception e){
-                throw e;
+            }
+            catch (System.IO.IOException e)
+            {
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+
+            if (ms.Length == 0)
+            {
+                return null;
             }
 
             return ms.ToArray();
         }
 
-        public static byte[] ReadContent(Stream stream, int length, int timeout)
+        public static byte[] ReadContent(Stream stream, int length)
         {
             MemoryStream ms = new MemoryStream();
-
-            stream.ReadTimeout = timeout;
+            byte[] buffer = new byte[BUFFER_SIZE];
+            int n = 0;
+            stream.ReadTimeout = READ_CONTENT_TIMEOUT;
             int count = 0;
+
             try
             {
                 while (count < length)
                 {
-                    int c = stream.ReadByte();
-                    ms.WriteByte(Convert.ToByte(c));
-                    count++;
+                    n = stream.Read(buffer, 0, BUFFER_SIZE);
+                    ms.Write(buffer, 0, n);
+                    count += n;
                 }
             }
-            catch (Exception e){
-                throw e;
+            catch (System.IO.IOException e)
+            {
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+
+            if (ms.Length == 0)
+            {
+                return null;
             }
 
             return ms.ToArray();
         }
 
-        public static byte[] ReadChunked(Stream stream, int timeout)
+        public static byte[] ReadChunked(Stream stream)
         {
             StringBuilder size = new StringBuilder();
             MemoryStream ms = new MemoryStream();
-
-            stream.ReadTimeout = timeout;
+            stream.ReadTimeout = READ_CONTENT_TIMEOUT;
             int c = 0;
 
             try {
@@ -170,7 +222,7 @@ namespace Glancer
             return ms.ToArray();
         }
 
-        public static void Write(HttpObject http, Stream stream, int timeout){
+        public static void Write(HttpObject http, Stream stream){
 
             byte[] bytes = null;
             if (http.GetType() == typeof(HttpRequestObject))
@@ -184,17 +236,16 @@ namespace Glancer
                 bytes = Encoding.UTF8.GetBytes(response._header._source);
             }
 
-            Write(stream, bytes, timeout);
+            Write(stream, bytes);
 
             if (0 < http._content._length)
             {
-                Write(stream, http._content.Get(), timeout);
+                Write(stream, http._content.Get());
             }
         }
 
-        public static void Write(Stream stream, byte[] byteContent, int timeout)
+        public static void Write(Stream stream, byte[] byteContent)
         {
-            stream.WriteTimeout = timeout;
             stream.Write(byteContent, 0, byteContent.Length);
             stream.Flush();
         }
