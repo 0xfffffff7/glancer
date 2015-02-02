@@ -14,10 +14,11 @@ namespace Glancer
 
             Stream server = serverSocket.GetStream();
             Stream client = null;
-            bool ssl = false;
             TcpClient clinetSocket = null;
             bool bConnect = false;
             string host = string.Empty;
+            bool bSSL = false;
+
 
             while (true)
             {
@@ -45,13 +46,14 @@ namespace Glancer
                         SslStreamSet sslset = SslHandshake.Handshake(clinetSocket, request, server);
                         server = sslset._serverStream;
                         client = sslset._clientStream;
-                        ssl = true;
+                        bConnect = true;
+                        bSSL = true;
                         continue;
                     }
                     //-----------------------------------------
                     // HTTP Conection.
                     //-----------------------------------------
-                    else if ((ssl == false && bConnect == false) || host != request._header._host)
+                    else if ( bSSL == false && (bConnect == false || host != request._header._host))
                     {
                         if (clinetSocket != null)
                         {
@@ -65,8 +67,11 @@ namespace Glancer
                         bConnect = true;
                     }
 
+                    //-----------------------------------------
                     // save host.
+                    //-----------------------------------------
                     host = request._header._host;
+
 
                     //-----------------------------------------
                     // Observer.
@@ -77,14 +82,7 @@ namespace Glancer
                     }
 
                 }catch(Exception ex){
-                    if (clinetSocket != null)
-                    {
-                        client.Close();
-                        clinetSocket.Close();
-                    }
-                    server.Close();
-                    serverSocket.Close();
-
+                    Close(serverSocket, clinetSocket, server, client);
                     throw ex;
                 }
 
@@ -98,14 +96,7 @@ namespace Glancer
                     HttpHeader.ModifyProxyRequest(request._header);
 
                 }catch(Exception ex){
-                    if (clinetSocket != null)
-                    {
-                        client.Close();
-                        clinetSocket.Close();
-                    }
-                    server.Close();
-                    serverSocket.Close();
-
+                    Close(serverSocket, clinetSocket, server, client);
                     throw ex;
                 }
 
@@ -130,14 +121,7 @@ namespace Glancer
                 }
                 catch (Exception ex)
                 {
-                    if (clinetSocket != null)
-                    {
-                        client.Close();
-                        clinetSocket.Close();
-                    }
-                    server.Close();
-                    serverSocket.Close();
-
+                    Close(serverSocket, clinetSocket, server, client);
                     throw ex;
                 }
 
@@ -169,14 +153,7 @@ namespace Glancer
                 }
                 catch (Exception ex)
                 {
-                    if (clinetSocket != null)
-                    {
-                        client.Close();
-                        clinetSocket.Close();
-                    }
-                    server.Close();
-                    serverSocket.Close();
-
+                    Close(serverSocket, clinetSocket, server, client);
                     throw ex;
                 }
 
@@ -202,14 +179,7 @@ namespace Glancer
                 }
                 catch (Exception ex)
                 {
-                    if (clinetSocket != null)
-                    {
-                        client.Close();
-                        clinetSocket.Close();
-                    }
-                    server.Close();
-                    serverSocket.Close();
-
+                    Close(serverSocket, clinetSocket, server, client);
                     throw ex;
                 }
 
@@ -221,13 +191,18 @@ namespace Glancer
 
             }
 
+            Close(serverSocket, clinetSocket, server, client);
+        }
+
+        static void Close(TcpClient serverSocket, TcpClient clinetSocket, Stream server, Stream client)
+        {
             if (clinetSocket != null)
             {
                 client.Close();
                 clinetSocket.Close();
             }
             server.Close();
-            serverSocket.Close(); 
+            serverSocket.Close();
         }
     }
 }

@@ -12,8 +12,6 @@ namespace Glancer
         static char CR = '\r';
         static char LF = '\n';
         public static int BUFFER_SIZE = 1024;
-        public static int READ_TIMEOUT = 5000;
-        public static int READ_CONTENT_TIMEOUT = 5000;
        
         public static HttpRequestObject ReadRequest(Stream stream)
         {
@@ -67,64 +65,68 @@ namespace Glancer
 
         public static byte[] Read(Stream stream)
         {
-            MemoryStream ms = new MemoryStream();
-            stream.ReadTimeout = READ_TIMEOUT;
-            bool newline = false;
-            try
+            using (MemoryStream ms = new MemoryStream())
             {
-                while (true)
-                {
-                    int c = stream.ReadByte();
-                    if (c == -1)
-                    {
-                        break;
-                    }
-                    if (c == CR)
-                    {
-                        ms.WriteByte(Convert.ToByte(c));
+                stream.ReadTimeout = SslTcpServer._read_timeout;
+                bool newline = false;
 
-                        c = stream.ReadByte();
+                try
+                {
+                    while (true)
+                    {
+                        int c = stream.ReadByte();
                         if (c == -1)
                         {
                             break;
                         }
-                        if (c == LF)
+                        if (c == CR)
                         {
-                            if (newline)
+                            ms.WriteByte(Convert.ToByte(c));
+
+                            c = stream.ReadByte();
+                            if (c == -1)
                             {
-                                ms.WriteByte(Convert.ToByte(c));
                                 break;
                             }
-                            else
+                            if (c == LF)
                             {
-                                newline = true;
+                                if (newline)
+                                {
+                                    ms.WriteByte(Convert.ToByte(c));
+                                    break;
+                                }
+                                else
+                                {
+                                    newline = true;
+                                }
                             }
-                        }
 
-                        ms.WriteByte(Convert.ToByte(c));
+                            ms.WriteByte(Convert.ToByte(c));
+                        }
+                        else
+                        {
+                            ms.WriteByte(Convert.ToByte(c));
+                            newline = false;
+                        }
                     }
-                    else
-                    {
-                        ms.WriteByte(Convert.ToByte(c));
-                        newline = false;
-                    }
+
+                }
+                catch (System.IO.IOException e)
+                {
+                    throw e;
+                }
+                catch (Exception ex)
+                {
+                    throw ex;
                 }
 
-            }
-            catch (System.IO.IOException e)
-            {
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+                if (ms.Length == 0)
+                {
+                    return null;
+                }
 
-            if (ms.Length == 0)
-            {
-                return null;
+                return ms.ToArray();
             }
-
-            return ms.ToArray();
         }
 
         public static byte[] ReadContent(Stream stream, int length)
@@ -132,7 +134,7 @@ namespace Glancer
             MemoryStream ms = new MemoryStream();
             byte[] buffer = new byte[BUFFER_SIZE];
             int n = 0;
-            stream.ReadTimeout = READ_CONTENT_TIMEOUT;
+            stream.ReadTimeout = SslTcpServer._read_timeout;
             int count = 0;
 
             try
@@ -146,6 +148,7 @@ namespace Glancer
             }
             catch (System.IO.IOException e)
             {
+                throw e;
             }
             catch (Exception ex)
             {
@@ -163,68 +166,76 @@ namespace Glancer
         public static byte[] ReadChunked(Stream stream)
         {
             StringBuilder size = new StringBuilder();
-            MemoryStream ms = new MemoryStream();
-            stream.ReadTimeout = READ_CONTENT_TIMEOUT;
-            int c = 0;
 
-            try {
-                while (true)
+            using (MemoryStream ms = new MemoryStream())
+            {
+                stream.ReadTimeout = SslTcpServer._read_timeout;
+                int c = 0;
+
+                try
                 {
                     while (true)
                     {
-                        c = stream.ReadByte();
-                        ms.WriteByte(Convert.ToByte(c));
-
-                        if (c == CR)
+                        while (true)
                         {
                             c = stream.ReadByte();
                             ms.WriteByte(Convert.ToByte(c));
-                            if (c == LF)
+
+                            if (c == CR)
                             {
-                                break;
+                                c = stream.ReadByte();
+                                ms.WriteByte(Convert.ToByte(c));
+                                if (c == LF)
+                                {
+                                    break;
+                                }
+                            }
+
+                            if (Convert.ToChar(c) != ';')
+                            {
+                                size.Append(Convert.ToChar(c));
                             }
                         }
 
-                        if (Convert.ToChar(c) != ';')
+                        int readSize = Convert.ToInt32(size.ToString(), 16);
+                        if (readSize == 0)
                         {
-                            size.Append(Convert.ToChar(c));
+                            stream.ReadByte();
+                            stream.ReadByte();
+                            ms.Write(Encoding.UTF8.GetBytes((System.Environment.NewLine)), 0, 2);
+                            break;
                         }
-                    }
+                        size.Clear();
 
-                    int readSize = Convert.ToInt32(size.ToString(), 16);
-                    if (readSize == 0)
-                    {
+                        int count = 0;
+                        while (count++ < readSize)
+                        {
+                            c = stream.ReadByte();
+                            ms.WriteByte(Convert.ToByte(c));
+                        }
+
+
+                        // New line.
                         stream.ReadByte();
                         stream.ReadByte();
-                        ms.Write(Encoding.UTF8.GetBytes((System.Environment.NewLine)), 0, 2);
-                        break;
-                    }
-                    size.Clear();
-
-                    int count = 0;
-                    while (count++ < readSize)
-                    {
-                        c = stream.ReadByte();
-                        ms.WriteByte(Convert.ToByte(c));
+                        ms.Write(Encoding.UTF8.GetBytes((System.Environment.NewLine)), 0, System.Environment.NewLine.Length);
                     }
 
-
-                    // New line.
-                    stream.ReadByte();
-                    stream.ReadByte();
-                    ms.Write(Encoding.UTF8.GetBytes((System.Environment.NewLine)), 0, System.Environment.NewLine.Length);
+                }
+                catch (Exception e)
+                {
+                    throw e;
                 }
 
-            }catch(Exception e){
-                throw e;
+                return ms.ToArray();
             }
-
-            return ms.ToArray();
         }
 
         public static void Write(HttpObject http, Stream stream){
 
             byte[] bytes = null;
+            stream.WriteTimeout = SslTcpServer._write_timeout;
+
             if (http.GetType() == typeof(HttpRequestObject))
             {
                 HttpRequestObject request = (HttpRequestObject)http;

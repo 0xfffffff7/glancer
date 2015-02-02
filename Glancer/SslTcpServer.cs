@@ -7,6 +7,7 @@ using System.Security.Authentication;
 using System.Text;
 using System.Security.Cryptography.X509Certificates;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace Glancer
 {
@@ -27,6 +28,8 @@ namespace Glancer
         public static TraceLogger _traceLogger = new TraceLogger();
         public string _protocolLogDir { set; get; }
         public string _traceLogDir { set; get; }
+        public static int _read_timeout = 0;
+        public static int _write_timeout = 0;
 
         public SslTcpServer(X509Certificate secret, int lisstenPort)
         {
@@ -39,22 +42,28 @@ namespace Glancer
             TcpListener listener = new TcpListener(IPAddress.Any, _lisstenPort);
             listener.Start();
 
+            _traceLogger.InitLogger(_traceLogDir, true, true, "tcp.log");
+            _traceLogger.OutputLog("RunServer().");
+            _traceLogger.OutputLog("Listen Start.");
+
             while (true)
             {
                 TcpClient serverSocket = listener.AcceptTcpClient();
 
-                // Create TCP Session.
-                string session = Guid.NewGuid().ToString();
-                _traceLogger.InitLogger(_traceLogDir, true, true, session + "_tcp.log");
-                _traceLogger.OutputLog("RunServer().");
-                _traceLogger.OutputLog("Listen Start.");
                 _traceLogger.OutputLog("AcceptTcpClient().");
 
+                // Create TCP Session.
+                string session = Guid.NewGuid().ToString();
                 ServerProcess(serverSocket, session);
             }
         }
 
-        void ServerProcess(TcpClient serverSocket, string session)
+        async void ServerProcess(TcpClient serverSocket, string session)
+        {
+            await Task.Run(() => ServerProcessAction(serverSocket, session));
+        }
+
+        void ServerProcessAction(TcpClient serverSocket, string session)
         {
             try
             {
@@ -67,12 +76,11 @@ namespace Glancer
                 HttpStreamProxy.Proxy(serverSocket, listner);
 
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 _traceLogger.InputLog("Exception");
                 _traceLogger.OutputLog(e.Message);
             }
-
         }
     }
 }

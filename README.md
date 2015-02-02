@@ -1,4 +1,4 @@
-glancer (Version 0.0.1.2)
+glancer (Version 0.2.0.0)
 =======
 
 # glancer  
@@ -14,7 +14,7 @@ Apache License, Version 2.0
   
 1. Install secret.pfx in local certificate store.  
 2. Resolution machine DNS at the hostname of the certificate.  
-3. Please hide the browser certificate warning. (Domain Check. etc..)
+3. Please hide the browser certificate warning. (Off Domain check. etc..)
 4. Setting ConfigFile.  
 
 ```

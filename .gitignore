@@ -1,0 +1,6 @@
+*.user
+*.suo
+*.pfx
+*.cer
+bin/
+obj/
