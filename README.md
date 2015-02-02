@@ -1,4 +1,4 @@
-glancer (Version 0.2.0.0)
+glancer (Version 0.2.1.0)
 =======
 
 # glancer  
@@ -23,6 +23,8 @@ Apache License, Version 2.0
     <add key="CERTIFICATE_PASSWORD" value=""/>
     <add key="PROTOCOLLOG_DIR" value=""/>
     <add key="TRACELOG_DIR" value=""/>
+    <add key="PROTOCOLLOG" value="off" />
+    <add key="TRACELOG" value="off" />
     <add key="LISTEN_PORT" value="8080"/>
     <add key="READ_TIMEOUT" value="5000"/>
     <add key="WRITE_TIMEOUT" value="5000"/>

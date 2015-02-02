@@ -23,6 +23,8 @@ namespace Glancer
             server._traceLogDir = tracelog_dir;
             SslTcpServer._read_timeout = read_timeout;
             SslTcpServer._write_timeout = write_timeout;
+            SslTcpServer._protocolLog = (ConfigurationManager.AppSettings["PROTOCOLLOG"] == "on");
+            SslTcpServer._traceLog = (ConfigurationManager.AppSettings["TRACELOG"] == "on");
 
             server.RunServer();
 

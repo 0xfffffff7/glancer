@@ -26,6 +26,8 @@ namespace Glancer
         public static X509Certificate _serverCertificate = null;
         int _lisstenPort;
         public static TraceLogger _traceLogger = new TraceLogger();
+        public static bool _protocolLog { set; get; }
+        public static bool _traceLog { set; get; }
         public string _protocolLogDir { set; get; }
         public string _traceLogDir { set; get; }
         public static int _read_timeout = 0;
@@ -43,6 +45,7 @@ namespace Glancer
             listener.Start();
 
             _traceLogger.InitLogger(_traceLogDir, true, true, "tcp.log");
+            _traceLogger._isLogOutput = _traceLog;
             _traceLogger.OutputLog("RunServer().");
             _traceLogger.OutputLog("Listen Start.");
 
@@ -70,6 +73,7 @@ namespace Glancer
                 // Create Event Listener.
                 TraceLogger protocolLogger = new TraceLogger();
                 protocolLogger.InitLogger(_protocolLogDir, false, false, session + ".log");
+                protocolLogger._isLogOutput = _protocolLog;
                 HttpEventListener listner = new HttpEventListener(protocolLogger);
 
                 // Proxy work.

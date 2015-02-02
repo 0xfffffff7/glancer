@@ -17,7 +17,7 @@ namespace Glancer
         }
 
         static internal object _sync = new object();
-        bool _isLogOutput = false;
+        public bool _isLogOutput {get; set;}
         string _logDirPath = string.Empty;
         List<string> _log = new List<string>();
         public bool _bIndent { get; set; }

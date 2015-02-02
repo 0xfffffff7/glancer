@@ -108,7 +108,7 @@ namespace Glancer
                 }
                 request._headers[HTTP_HEADER_KEY.HOST] = host;
 
-                absolutePath = request._uri.AbsolutePath;
+                absolutePath = request._uri.PathAndQuery;
 
             }else{
                 absolutePath = request._path;
